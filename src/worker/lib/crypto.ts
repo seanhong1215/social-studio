@@ -7,7 +7,9 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 function base64ToBytes(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
+  const standard = value.replaceAll('-', '+').replaceAll('_', '/')
+  const padded = standard.padEnd(Math.ceil(standard.length / 4) * 4, '=')
+  return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0))
 }
 
 export function randomToken(bytes = 32): string {

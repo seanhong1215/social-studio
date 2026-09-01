@@ -33,15 +33,7 @@ npx wrangler queues create social-content-generation
 npx wrangler queues create social-content-generation-dlq
 ```
 
-## 5. 設定 Secrets
-
-```bash
-npx wrangler secret put BOOTSTRAP_TOKEN
-```
-
-`BOOTSTRAP_TOKEN` 請使用密碼管理器產生至少 32 bytes 的隨機值，不可提交到 Git。
-
-## 6. 選擇 AI 模式
+## 5. 選擇 AI 模式
 
 公開 Demo 建議先在 `wrangler.jsonc` 使用：
 
@@ -51,23 +43,13 @@ npx wrangler secret put BOOTSTRAP_TOKEN
 
 確認免費 AI 額度及輸出品質後，再改成 `workers-ai`。
 
-## 7. 部署
+## 6. 部署
 
 ```bash
 npm run deploy
 ```
 
-## 8. 初始化管理員
-
-第一次開啟網站後：
-
-1. 點選「第一次使用？初始化管理員」。
-2. 輸入 email、至少 10 字元密碼及 `BOOTSTRAP_TOKEN`。
-3. 登入完成後輪替 Bootstrap Token：
-
-```bash
-npx wrangler secret put BOOTSTRAP_TOKEN
-```
+公開作品使用 `AI_PROVIDER=demo` 時，可從登入頁一鍵進入 Demo 帳戶。
 
 ## GitHub Actions
 

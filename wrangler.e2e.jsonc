@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "social-studio-e2e",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-05-03",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "social-studio-e2e-db",
+    "database_id": "00000000-0000-0000-0000-000000000001",
+    "migrations_dir": "migrations"
+  }],
+  "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "social-studio-e2e-media" }],
+  "queues": {
+    "producers": [{ "binding": "CONTENT_QUEUE", "queue": "social-content-generation-e2e" }],
+    "consumers": [{ "queue": "social-content-generation-e2e", "max_batch_size": 1, "max_batch_timeout": 1 }]
+  },
+  "vars": {
+    "APP_ENV": "development",
+    "AI_PROVIDER": "demo"
+  }
+}

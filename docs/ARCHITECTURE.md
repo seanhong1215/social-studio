@@ -7,7 +7,7 @@ Browser
   │
   ▼
 Cloudflare Worker
-  ├── Static Assets: React SPA
+  ├── Static Assets: Vue 3 SPA
   ├── Hono API
   ├── D1 binding
   ├── R2 binding
@@ -49,7 +49,7 @@ Cloudflare Worker
 - Session token 只存 SHA-256 hash。
 - Cookie 使用 HttpOnly、SameSite=Lax，production 使用 Secure。
 - 密碼使用 Web Crypto PBKDF2-SHA256 與獨立 salt。
-- 第一位管理員只能透過 Worker secret 中的 Bootstrap Token 建立一次。
+- Demo 帳戶僅在 `AI_PROVIDER=demo` 時由後端建立，正式模式不開放此入口。
 - 所有 Campaign 與 R2 API 需要有效 Session。
 - API 使用 Hono secure headers。
 

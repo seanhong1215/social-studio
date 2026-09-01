@@ -37,6 +37,16 @@ export type DashboardStats = {
   aiProvider: string
 }
 
+export type CalendarItem = {
+  id: string
+  campaignId: string
+  campaignTitle: string
+  platform: string
+  copywriting: string
+  releaseAt: number
+  status: string
+}
+
 type ApiEnvelope<T> = { data: T; message?: string }
 
 export class ApiError extends Error {
@@ -63,11 +73,11 @@ export const api = {
   login: (email: string, password: string) => request<User>('/api/auth/login', {
     method: 'POST', body: JSON.stringify({ email, password }),
   }),
-  bootstrap: (input: { email: string; password: string; displayName: string; token: string }) =>
-    request<{ id: string; email: string }>('/api/auth/bootstrap', { method: 'POST', body: JSON.stringify(input) }),
+  demoLogin: () => request<User>('/api/auth/demo', { method: 'POST' }),
   logout: () => request<never>('/api/auth/logout', { method: 'POST' }),
   stats: () => request<DashboardStats>('/api/dashboard'),
   campaigns: () => request<CampaignSummary[]>('/api/campaigns'),
+  calendar: () => request<CalendarItem[]>('/api/campaigns/calendar'),
   campaign: (id: string) => request<CampaignDetail>(`/api/campaigns/${id}`),
   createCampaign: (title: string, brief: string) => request<CampaignSummary>('/api/campaigns', {
     method: 'POST', body: JSON.stringify({ title, brief }),
@@ -78,4 +88,10 @@ export const api = {
     return request<Array<{ id: string }>>(`/api/campaigns/${campaignId}/assets`, { method: 'POST', body: form })
   },
   generate: (campaignId: string) => request<{ jobId: string; status: string }>(`/api/campaigns/${campaignId}/generate`, { method: 'POST' }),
+  updateCampaign: (campaignId: string, input: { title?: string; brief?: string }) => request(`/api/campaigns/${campaignId}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  updateContent: (campaignId: string, contentId: string, input: { copywriting: string; hashtags: string[] }) => request(`/api/campaigns/${campaignId}/contents/${contentId}`, { method: 'PATCH', body: JSON.stringify(input) }),
+  approveCampaign: (campaignId: string) => request(`/api/campaigns/${campaignId}/approve`, { method: 'POST' }),
+  scheduleCampaign: (campaignId: string, releaseAt: number) => request(`/api/campaigns/${campaignId}/schedule`, { method: 'POST', body: JSON.stringify({ releaseAt }) }),
+  publishCampaign: (campaignId: string) => request(`/api/campaigns/${campaignId}/publish`, { method: 'POST' }),
+  deleteCampaign: (campaignId: string) => request(`/api/campaigns/${campaignId}`, { method: 'DELETE' }),
 }

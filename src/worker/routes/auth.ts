@@ -12,31 +12,47 @@ const credentialsSchema = z.object({
   password: z.string().min(10).max(128),
 })
 
-auth.post('/bootstrap', async (c) => {
-  const body = await c.req.json().catch(() => null)
-  const parsed = credentialsSchema.extend({
-    displayName: z.string().trim().min(2).max(80),
-    token: z.string().min(1),
-  }).safeParse(body)
-  if (!parsed.success) return c.json({ error: { code: 'INVALID_INPUT', issues: parsed.error.issues } }, 400)
-  if (!c.env.BOOTSTRAP_TOKEN || parsed.data.token !== c.env.BOOTSTRAP_TOKEN) {
-    return c.json({ error: { code: 'FORBIDDEN', message: 'Bootstrap token 無效' } }, 403)
+auth.post('/demo', async (c) => {
+  if (c.env.AI_PROVIDER !== 'demo') {
+    return c.json({ error: { code: 'DEMO_DISABLED', message: 'Demo 帳戶未啟用' } }, 404)
   }
 
-  const existing = await c.env.DB.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>()
-  if ((existing?.count ?? 0) > 0) {
-    return c.json({ error: { code: 'ALREADY_INITIALIZED', message: '系統已完成初始化' } }, 409)
+  const email = 'demo@social-studio.local'
+  let user = await c.env.DB.prepare(`
+    SELECT id, email, display_name AS displayName, role
+    FROM users WHERE email = ? AND disabled = 0
+  `).bind(email).first<{ id: string; email: string; displayName: string; role: 'editor' }>()
+
+  if (!user) {
+    const userId = crypto.randomUUID()
+    const password = await hashPassword(randomToken(32))
+    await c.env.DB.prepare(`
+      INSERT OR IGNORE INTO users (id, email, display_name, password_hash, password_salt, role, created_at)
+      VALUES (?, ?, 'Demo 體驗帳戶', ?, ?, 'editor', ?)
+    `).bind(userId, email, password.hash, password.salt, Date.now()).run()
+    user = await c.env.DB.prepare(`
+      SELECT id, email, display_name AS displayName, role
+      FROM users WHERE email = ? AND disabled = 0
+    `).bind(email).first<{ id: string; email: string; displayName: string; role: 'editor' }>()
   }
 
-  const userId = crypto.randomUUID()
-  const createdAt = Date.now()
-  const password = await hashPassword(parsed.data.password)
+  if (!user) return c.json({ error: { code: 'DEMO_UNAVAILABLE', message: '無法建立 Demo 帳戶' } }, 500)
+
+  const token = randomToken()
+  const now = Date.now()
+  const expiresAt = now + 24 * 60 * 60 * 1000
   await c.env.DB.prepare(`
-    INSERT INTO users (id, email, display_name, password_hash, password_salt, role, created_at)
-    VALUES (?, ?, ?, ?, ?, 'admin', ?)
-  `).bind(userId, parsed.data.email, parsed.data.displayName, password.hash, password.salt, createdAt).run()
+    INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)
+  `).bind(crypto.randomUUID(), user.id, await sha256(token), expiresAt, now).run()
+  setCookie(c, 'social_session', token, {
+    httpOnly: true,
+    secure: c.env.APP_ENV === 'production',
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 24 * 60 * 60,
+  })
 
-  return c.json({ data: { id: userId, email: parsed.data.email }, message: '管理員建立完成' }, 201)
+  return c.json({ data: user })
 })
 
 auth.post('/login', async (c) => {

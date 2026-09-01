@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "social-studio",
   "main": "src/worker/index.ts",
-  "compatibility_date": "2026-08-31",
+  "compatibility_date": "2026-05-03",
   "observability": {
     "enabled": true
   },

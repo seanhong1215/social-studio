@@ -9,7 +9,6 @@ export type Bindings = {
   APP_ENV: string
   AI_PROVIDER: 'workers-ai' | 'anthropic' | 'demo'
   ANTHROPIC_API_KEY?: string
-  BOOTSTRAP_TOKEN?: string
 }
 
 export type Variables = {

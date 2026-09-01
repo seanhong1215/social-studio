@@ -1,8 +1,11 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import vue from '@vitejs/plugin-vue'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [vue()],
+  test: {
+    include: ['tests/**/*.test.ts'],
+  },
   root: '.',
   build: {
     outDir: 'dist',
@@ -11,7 +14,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:8787',
+      '/api': 'http://127.0.0.1:8790',
     },
   },
 })

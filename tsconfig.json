@@ -14,8 +14,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["src/web", "src/worker", "vite.config.ts", "drizzle.config.ts", "tests"]
+  "include": ["src/web/**/*.ts", "src/web/**/*.vue", "src/worker", "vite.config.ts", "drizzle.config.ts", "playwright.config.ts", "tests"]
 }

@@ -2,11 +2,11 @@
 
 AI-powered multi-platform social content workspace，使用 Cloudflare 原生服務重新設計。
 
-一張圖片可以產生 Facebook、Instagram、X、Threads、YouTube 與 TikTok 六個平台的獨立文案與 hashtags。第一版包含管理員初始化、Session 登入、RBAC 基礎、企劃管理、R2 圖片上傳、Queue 非同步生成、Workers AI 及 audit log。
+一張圖片可以產生 Facebook、Instagram、X、Threads、YouTube 與 TikTok 六個平台的獨立文案與 hashtags。第一版包含 Demo 一鍵登入、Session、RBAC 基礎、企劃管理、R2 圖片上傳、Queue 非同步生成、Workers AI 及 audit log。
 
 ## 架構
 
-- React 19 + TypeScript：前端 SPA
+- Vue 3 + TypeScript：前端 SPA
 - Hono：Cloudflare Worker API
 - D1 + Drizzle schema：關聯資料
 - R2：圖片素材
@@ -23,26 +23,34 @@ AI-powered multi-platform social content workspace，使用 Cloudflare 原生服
 
 ```bash
 npm install
-npx wrangler d1 migrations apply social-studio-db --local
+npm run dev:worker
+```
+
+再開另一個終端啟動 Vue：
+
+```bash
 npm run dev
 ```
 
-完整的本機 Worker 環境可使用：
+`npm run dev:worker` 會自動使用本機的 `development` 與 `demo` 設定。開啟登入頁後，可直接點擊「一鍵進入 Demo」。
 
-```bash
-npm run build
-npx wrangler dev
+## 使用者流程
+
+目前可完整操作：
+
+```text
+Demo 登入
+  → 建立與修改企劃
+  → 上傳圖片素材
+  → 生成六平台文案
+  → 逐平台編輯與儲存
+  → 核准六平台內容
+  → 設定發布日期
+  → 在內容日曆查看排程
+  → 標記發布完成
 ```
 
-第一次使用前，在 `.dev.vars` 設定：
-
-```dotenv
-APP_ENV=development
-AI_PROVIDER=demo
-BOOTSTRAP_TOKEN=change-this-local-token
-```
-
-開啟登入頁，選擇「第一次使用？初始化管理員」，輸入 Bootstrap Token 建立唯一的第一位管理員。完成初始化後應輪替或移除 `BOOTSTRAP_TOKEN`。
+企劃列表支援搜尋與狀態篩選；刪除企劃時會一併移除 D1 關聯資料及 R2 圖片。`AI_PROVIDER=demo` 產生的是清楚標示的模板文案；`workers-ai` 才會使用 Cloudflare Workers AI 分析圖片。發布功能目前記錄內部工作流狀態，尚未串接 Facebook、Instagram 等平台 OAuth。
 
 ## 驗證
 
@@ -51,6 +59,27 @@ npm run test
 npm run build
 npm audit --omit=dev
 ```
+
+完整使用者流程會啟動隔離的本機 D1、R2 與 Queue，依序驗證 Demo 登入、企劃建立、素材上傳、文案生成與編輯、核准、排程、日曆及發布狀態：
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Playwright 每次執行都會錄影，結果放在 `artifacts/e2e/`；CI 亦會保存可下載的 E2E artifact。測試使用 `wrangler.e2e.jsonc` 與獨立的 `.wrangler/state/e2e`，不會接觸開發或正式資料。
+
+面試展示版錄影會在 14 個關鍵步驟各停留約 1.2 秒：
+
+```bash
+npm run demo:record
+```
+
+成功影片整理於 `artifacts/social-studio-user-flow.webm`。
+
+## 舊資料庫
+
+已盤點本機來源 `資料庫/socialmedia.sql`，它是 MySQL dump，包含既有帳號、社群訂單、圖片 metadata、參數與日誌。初始化階段不直接匯入 D1，以免在資料模型仍要調整時反覆重做 migration；欄位對應、密碼與圖片處理原則見 [資料遷移說明](docs/DATA_MIGRATION.md)。
 
 ## 部署
 
@@ -76,18 +105,18 @@ npm run deploy
 
 - Cloudflare-native 專案骨架
 - D1 migration 與正規化資料模型
-- 安全 Session Cookie 與第一位管理員初始化
+- 安全 Session Cookie 與 Demo 一鍵登入
 - Campaign CRUD 基礎與六平台內容紀錄
 - R2 圖片上傳與授權讀取
 - Queue + Workers AI 非同步生成
 - Demo AI fallback
 - 響應式登入頁、Dashboard、Campaign drawer
+- 企劃搜尋、文案編輯、核准、排程、內容日曆與發布狀態
 - GitHub Actions CI/CD
 
 後續里程碑：
 
 - 使用者管理及完整 RBAC UI
-- 平台文案編輯、審核及版本歷史
+- 平台文案版本歷史
 - 真實社群平台 OAuth 與發布 adapters
-- MySQL 舊資料轉換工具
-- Playwright E2E 與 Cloudflare integration tests
+- MySQL 至 D1 的可重複資料轉換工具
