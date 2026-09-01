@@ -16,8 +16,9 @@ export default defineConfig({
     timezoneId: 'Asia/Taipei',
   },
   projects: [
-    { name: 'chromium', testIgnore: /mobile-review\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', testIgnore: [/mobile-review\.spec\.ts/, /record-user-flow\.spec\.ts/], use: { ...devices['Desktop Chrome'] } },
     { name: 'mobile-chrome', testMatch: /mobile-review\.spec\.ts/, use: { ...devices['Pixel 7'] } },
+    { name: 'demo-recording', testMatch: /record-user-flow\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
     command: 'npm run e2e:serve',
