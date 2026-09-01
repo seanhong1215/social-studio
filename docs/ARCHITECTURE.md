@@ -3,54 +3,63 @@
 ## 系統邊界
 
 ```text
-Browser
-  │
-  ▼
-Cloudflare Worker
-  ├── Static Assets: Vue 3 SPA
-  ├── Hono API
-  ├── D1 binding
-  ├── R2 binding
-  ├── Queue producer / consumer
-  └── Workers AI binding
+Vue SPA
+  └─ Cloudflare Worker / Hono API
+       ├─ D1：帳號、工作流程、審核、發布與成效
+       ├─ R2：品牌與貼文素材
+       ├─ Queue：AI 生成與模擬發布工作
+       ├─ Cron：到期發布、成效快照與資料清理
+       └─ Workers AI／Demo Provider
 ```
 
-所有應用元件位於同一個 Cloudflare account，避免跨供應商憑證、網路延遲與免費方案維護成本。
+## 領域模型
 
-## 資料模型
+```text
+Workspace
+  ├─ Membership / Invitation
+  └─ Brand
+       └─ Campaign
+            └─ Post
+                 ├─ Platform Variant
+                 ├─ Assets
+                 └─ Review Comments
+```
 
-- `users` / `sessions`：身分與 Session。
-- `campaigns`：內容企劃主體。
-- `platform_contents`：每個企劃的多平台內容；新增平台不需增加欄位。
-- `assets`：R2 object metadata。
-- `ai_jobs`：Queue 工作狀態，避免把外部 AI 呼叫放在 HTTP request transaction。
-- `audit_logs`：重要操作稽核。
+Campaign 用於管理一段行銷計畫，Post 是其中可獨立製作與審核的內容，Platform Variant 則保存各社群平台自己的文案、狀態與排程。
 
-## AI 工作流
+## 權限
 
-1. API 建立 `ai_jobs`，狀態為 `queued`。
-2. 將只含 ID 的小型訊息放入 Queue，圖片不進 Queue。
-3. Consumer 從 R2 讀取第一張圖片。
-4. Workers AI Vision 產生六平台 JSON。
-5. Zod 驗證完整 response。
-6. D1 batch 原子更新六筆平台內容、Campaign 與 Job。
-7. 失敗時保留錯誤摘要並由 Queue retry。
+- `owner`：完整管理工作空間。
+- `admin`：管理品牌、成員與所有內容。
+- `editor`：建立、編輯、送審與排程內容。
+- `reviewer`：留言、退回及核准內容。
+- `viewer`：唯讀。
 
-## 免費方案保護
+所有內容、R2 object 與 API 查詢都以 Workspace scope 隔離。
 
-- 圖片限制每張 5MB、每次最多 6 張。
-- Queue 訊息只放 ID，保持在單一 64KB operation。
-- 公開展示可以使用 `AI_PROVIDER=demo`。
-- D1 查詢欄位都有對應 indexes，避免不必要的 row scans。
-- R2 物件透過已登入 API 讀取，不公開 bucket。
+## 工作流程
 
-## 安全設計
+1. 編輯者建立 Campaign 與多篇 Post。
+2. AI 依品牌受眾、語氣、關鍵字與禁用詞產生提案及平台文案。
+3. Post 送審後，各 Platform Variant 獨立核准或退回。
+4. 核准版本可設定不同發布時間並顯示於內容日曆。
+5. Cron 建立具冪等鍵的模擬發布工作，由 Queue 執行成功或可控失敗。
+6. 發布成功後建立固定 seed 的成效快照，供品牌與平台報表使用。
 
-- Session token 只存 SHA-256 hash。
-- Cookie 使用 HttpOnly、SameSite=Lax，production 使用 Secure。
-- 密碼使用 Web Crypto PBKDF2-SHA256 與獨立 salt。
-- Demo 帳戶僅在 `AI_PROVIDER=demo` 時由後端建立，正式模式不開放此入口。
-- 所有 Campaign 與 R2 API 需要有效 Session。
-- API 使用 Hono secure headers。
+## 安全與可靠性
 
-正式公開前仍應加入登入 rate limit、CSRF token、TOTP/passkey 與完整使用者管理。
+- Session token 與邀請 token 只保存 SHA-256 hash。
+- 密碼使用 PBKDF2-SHA256 及獨立 salt。
+- Mutation API 使用 CSRF double-submit token。
+- 登入依 IP 與 email 限制失敗次數。
+- 素材驗證 MIME、大小與檔案 signature，並經授權 API 讀取。
+- 發布 job 使用唯一 idempotency key，避免 Cron 重複執行。
+- 重要操作寫入 audit log；錯誤訊息不包含憑證。
+
+## 測試策略
+
+- Vitest：密碼與 AI schema。
+- Migration smoke：在隔離 D1 套用全部 migrations。
+- Playwright Desktop：完整內容營運流程與產品導覽。
+- Playwright Mobile：導覽、通知與審核中心。
+- CI：PR 與 `master` 執行 test、build、E2E，通過後才部署。

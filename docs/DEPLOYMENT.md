@@ -49,6 +49,12 @@ npx wrangler queues create social-content-generation-dlq
 npm run deploy
 ```
 
+正式部署前先套用 D1 migrations：
+
+```bash
+npm run db:migrate:remote
+```
+
 公開作品使用 `AI_PROVIDER=demo` 時，可從登入頁一鍵進入 Demo 帳戶。
 
 ## GitHub Actions
@@ -58,7 +64,7 @@ npm run deploy
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-`main` branch 通過 test 與 build 後會執行 `wrangler deploy`。首次正式部署前，仍需手動建立 D1、R2、Queues 及套用 migration。
+`master` branch 通過 test 與 build 後會執行 `wrangler deploy`。首次正式部署前，仍需手動建立 D1、R2、Queues 及套用 migration。
 
 ## 維護節奏
 

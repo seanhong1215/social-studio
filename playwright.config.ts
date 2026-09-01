@@ -15,7 +15,10 @@ export default defineConfig({
     locale: 'zh-TW',
     timezoneId: 'Asia/Taipei',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', testIgnore: /mobile-review\.spec\.ts/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'mobile-chrome', testMatch: /mobile-review\.spec\.ts/, use: { ...devices['Pixel 7'] } },
+  ],
   webServer: {
     command: 'npm run e2e:serve',
     url: 'http://127.0.0.1:8791/api/health',
