@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -77,3 +77,80 @@ export const auditLogs = sqliteTable('audit_logs', {
   metadata: text('metadata').notNull().default('{}'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
 }, (table) => [index('audit_logs_entity_idx').on(table.entityType, table.entityId, table.createdAt)])
+
+export const workspaces = sqliteTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  timezone: text('timezone').notNull().default('Asia/Taipei'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [uniqueIndex('workspaces_slug_uq').on(table.slug)])
+
+export const workspaceMembers = sqliteTable('workspace_members', {
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role', { enum: ['owner', 'admin', 'editor', 'reviewer', 'viewer'] }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [primaryKey({ columns: [table.workspaceId, table.userId] }), index('workspace_members_user_idx').on(table.userId)])
+
+export const brands = sqliteTable('brands', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  industry: text('industry').notNull().default(''),
+  audience: text('audience').notNull().default(''),
+  tone: text('tone').notNull().default(''),
+  keywords: text('keywords').notNull().default('[]'),
+  bannedTerms: text('banned_terms').notNull().default('[]'),
+  defaultCta: text('default_cta').notNull().default(''),
+  primaryColor: text('primary_color').notNull().default('#E9684A'),
+  logoR2Key: text('logo_r2_key'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [index('brands_workspace_idx').on(table.workspaceId, table.createdAt)])
+
+export const contentCampaigns = sqliteTable('content_campaigns', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  brandId: text('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  objective: text('objective').notNull().default(''),
+  brief: text('brief').notNull().default(''),
+  startAt: integer('start_at', { mode: 'timestamp_ms' }),
+  endAt: integer('end_at', { mode: 'timestamp_ms' }),
+  status: text('status', { enum: ['draft', 'active', 'completed', 'archived'] }).notNull().default('draft'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [index('content_campaigns_brand_idx').on(table.workspaceId, table.brandId, table.updatedAt)])
+
+export const contentPosts = sqliteTable('content_posts', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  campaignId: text('campaign_id').notNull().references(() => contentCampaigns.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  brief: text('brief').notNull().default(''),
+  format: text('format', { enum: ['image', 'carousel', 'short_video'] }).notNull(),
+  assigneeId: text('assignee_id').references(() => users.id),
+  dueAt: integer('due_at', { mode: 'timestamp_ms' }),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [index('content_posts_campaign_idx').on(table.campaignId, table.updatedAt)])
+
+export const contentVariants = sqliteTable('content_variants', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  postId: text('post_id').notNull().references(() => contentPosts.id, { onDelete: 'cascade' }),
+  platform: text('platform').notNull(),
+  copywriting: text('copywriting').notNull().default(''),
+  hashtags: text('hashtags').notNull().default('[]'),
+  status: text('status', { enum: ['draft', 'in_review', 'changes_requested', 'approved', 'scheduled', 'publishing', 'published', 'failed'] }).notNull().default('draft'),
+  scheduledAt: integer('scheduled_at', { mode: 'timestamp_ms' }),
+  publishedAt: integer('published_at', { mode: 'timestamp_ms' }),
+  reviewedBy: text('reviewed_by').references(() => users.id),
+  reviewedAt: integer('reviewed_at', { mode: 'timestamp_ms' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+}, (table) => [uniqueIndex('content_variants_post_platform_uq').on(table.postId, table.platform), index('content_variants_schedule_idx').on(table.workspaceId, table.status, table.scheduledAt)])
