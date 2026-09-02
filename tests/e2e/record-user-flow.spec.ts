@@ -103,9 +103,12 @@ test('錄製 Social Studio V2 完整使用者流程 GIF', async ({ page }) => {
   }
   await capture(1600)
 
-  // datetime-local drops seconds; keep enough distance for slower CI runners.
-  const schedule = new Date(Date.now() + 5 * 60_000)
-  const value = new Date(schedule.getTime() - schedule.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+  // Generate the wall-clock value inside the browser's configured timezone.
+  const value = await page.evaluate(() => {
+    const schedule = new Date(Date.now() + 5 * 60_000)
+    const pad = (part: number) => String(part).padStart(2, '0')
+    return `${schedule.getFullYear()}-${pad(schedule.getMonth() + 1)}-${pad(schedule.getDate())}T${pad(schedule.getHours())}:${pad(schedule.getMinutes())}`
+  })
   await page.getByLabel('發布時間').first().fill(value)
   await capture(1400)
   await page.getByRole('button', { name: '加入排程' }).first().click()
