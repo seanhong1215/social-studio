@@ -4,9 +4,12 @@ import { secureHeaders } from 'hono/secure-headers'
 import authRoutes from './routes/auth'
 import campaignRoutes from './routes/campaigns'
 import dashboardRoutes from './routes/dashboard'
-import { requireAuth } from './middleware/auth'
+import workspaceRoutes from './routes/workspaces'
+import operationRoutes from './routes/operations'
+import { requireAuth, requireCsrf } from './middleware/auth'
 import { processGenerationJob } from './services/content-generator'
-import type { Bindings, GenerateContentMessage, Variables } from './types'
+import { enqueueDuePublications, growPublishedAnalytics, processPublishJob } from './services/publisher'
+import type { Bindings, Variables, WorkerMessage } from './types'
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
@@ -20,8 +23,22 @@ app.use('/api/dashboard', requireAuth)
 app.use('/api/dashboard/*', requireAuth)
 app.use('/api/campaigns', requireAuth)
 app.use('/api/campaigns/*', requireAuth)
+app.use('/api/workspaces', requireAuth)
+app.use('/api/workspaces/*', requireAuth)
+app.use('/api/operations', requireAuth)
+app.use('/api/operations/*', requireAuth)
+app.use('/api/dashboard', requireCsrf)
+app.use('/api/dashboard/*', requireCsrf)
+app.use('/api/campaigns', requireCsrf)
+app.use('/api/campaigns/*', requireCsrf)
+app.use('/api/workspaces', requireCsrf)
+app.use('/api/workspaces/*', requireCsrf)
+app.use('/api/operations', requireCsrf)
+app.use('/api/operations/*', requireCsrf)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/campaigns', campaignRoutes)
+app.route('/api/workspaces', workspaceRoutes)
+app.route('/api/operations', operationRoutes)
 
 app.notFound((c) => c.json({ error: { code: 'NOT_FOUND', message: '找不到資源' } }, 404))
 app.onError((error, c) => {
@@ -31,16 +48,22 @@ app.onError((error, c) => {
 
 export default {
   fetch: app.fetch,
-  async queue(batch: MessageBatch<GenerateContentMessage>, env: Bindings): Promise<void> {
+  async queue(batch: MessageBatch<WorkerMessage>, env: Bindings): Promise<void> {
     for (const message of batch.messages) {
-      await processGenerationJob(env, message.body)
+      if (message.body.type === 'publish') await processPublishJob(env, message.body)
+      else await processGenerationJob(env, message.body)
       message.ack()
     }
   },
   async scheduled(_controller: ScheduledController, env: Bindings, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(env.DB.batch([
-      env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(Date.now()),
-      env.DB.prepare(`DELETE FROM audit_logs WHERE created_at < ?`).bind(Date.now() - 180 * 24 * 60 * 60 * 1000),
+    ctx.waitUntil(Promise.all([
+      env.DB.batch([
+        env.DB.prepare('DELETE FROM sessions WHERE expires_at <= ?').bind(Date.now()),
+        env.DB.prepare('DELETE FROM auth_rate_limits WHERE attempted_at < ?').bind(Date.now() - 24 * 60 * 60 * 1000),
+        env.DB.prepare(`DELETE FROM audit_logs WHERE created_at < ?`).bind(Date.now() - 180 * 24 * 60 * 60 * 1000),
+      ]).then(() => undefined),
+      enqueueDuePublications(env),
+      growPublishedAnalytics(env),
     ]).then(() => undefined))
   },
-} satisfies ExportedHandler<Bindings, GenerateContentMessage>
+} satisfies ExportedHandler<Bindings, WorkerMessage>

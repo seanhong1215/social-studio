@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "social-studio",
+  "name": "social-studio-demo",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-05-03",
   "observability": {
@@ -15,31 +15,31 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "social-studio-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_name": "social-studio-demo-db",
+      "database_id": "4a9dc3ef-11d8-46c2-bf5b-729b5b046c9b",
       "migrations_dir": "migrations"
     }
   ],
   "r2_buckets": [
     {
       "binding": "MEDIA",
-      "bucket_name": "social-studio-media"
+      "bucket_name": "social-studio-demo-media"
     }
   ],
   "queues": {
     "producers": [
       {
         "binding": "CONTENT_QUEUE",
-        "queue": "social-content-generation"
+        "queue": "social-studio-demo-content"
       }
     ],
     "consumers": [
       {
-        "queue": "social-content-generation",
+        "queue": "social-studio-demo-content",
         "max_batch_size": 1,
         "max_batch_timeout": 5,
         "max_retries": 3,
-        "dead_letter_queue": "social-content-generation-dlq"
+        "dead_letter_queue": "social-studio-demo-content-dlq"
       }
     ]
   },
@@ -47,10 +47,10 @@
     "binding": "AI"
   },
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["* * * * *"]
   },
   "vars": {
     "APP_ENV": "production",
-    "AI_PROVIDER": "workers-ai"
+    "AI_PROVIDER": "demo"
   }
 }

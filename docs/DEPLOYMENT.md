@@ -9,7 +9,7 @@ npx wrangler login
 ## 2. 建立 D1
 
 ```bash
-npx wrangler d1 create social-studio-db
+npx wrangler d1 create social-studio-demo-db
 ```
 
 將輸出的 `database_id` 填入 `wrangler.jsonc`，再套用 migration：
@@ -21,7 +21,7 @@ npm run db:migrate:remote
 ## 3. 建立 R2
 
 ```bash
-npx wrangler r2 bucket create social-studio-media
+npx wrangler r2 bucket create social-studio-demo-media
 ```
 
 R2 可能要求帳戶完成付款方式驗證。使用量在免費額度內仍為零費用；Cloudflare Dashboard 應開啟用量通知。
@@ -29,13 +29,13 @@ R2 可能要求帳戶完成付款方式驗證。使用量在免費額度內仍�
 ## 4. 建立 Queues
 
 ```bash
-npx wrangler queues create social-content-generation
-npx wrangler queues create social-content-generation-dlq
+npx wrangler queues create social-studio-demo-content
+npx wrangler queues create social-studio-demo-content-dlq
 ```
 
 ## 5. 選擇 AI 模式
 
-公開 Demo 建議先在 `wrangler.jsonc` 使用：
+公開 Demo 在 `wrangler.jsonc` 使用：
 
 ```json
 "AI_PROVIDER": "demo"
@@ -49,6 +49,12 @@ npx wrangler queues create social-content-generation-dlq
 npm run deploy
 ```
 
+正式部署前先套用 D1 migrations：
+
+```bash
+npm run db:migrate:remote
+```
+
 公開作品使用 `AI_PROVIDER=demo` 時，可從登入頁一鍵進入 Demo 帳戶。
 
 ## GitHub Actions
@@ -58,7 +64,7 @@ npm run deploy
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-`main` branch 通過 test 與 build 後會執行 `wrangler deploy`。首次正式部署前，仍需手動建立 D1、R2、Queues 及套用 migration。
+`master` branch 通過 test 與 build 後會執行 `wrangler deploy`。首次正式部署前，仍需手動建立 D1、R2、Queues 及套用 migration。
 
 ## 維護節奏
 

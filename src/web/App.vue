@@ -1,31 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { LoaderCircle } from '@lucide/vue'
-import { api, ApiError, type User } from './lib/api'
-import LoginScreen from './components/LoginScreen.vue'
-import WorkspaceView from './components/WorkspaceView.vue'
+import { onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useSessionStore } from './stores/session'
 
-const user = ref<User | null>()
-
-onMounted(async () => {
-  try {
-    user.value = await api.me()
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401) console.error(error)
-    user.value = null
-  }
+const session = useSessionStore(); const route = useRoute(); const router = useRouter()
+onMounted(() => session.bootstrap())
+watch([() => session.ready, () => session.user, () => route.path], () => {
+  if (!session.ready) return
+  if (!session.user && !route.meta.public) router.replace(`/login?redirect=${encodeURIComponent(route.fullPath)}`)
+  if (session.user && route.meta.public) router.replace('/overview')
 })
-
-async function logout() {
-  try { await api.logout() } finally { user.value = null }
-}
 </script>
 
 <template>
-  <main v-if="user === undefined" class="center-screen" data-testid="loading-screen">
-    <LoaderCircle class="spin" :size="30" />
-    <p>正在啟動工作空間…</p>
-  </main>
-  <LoginScreen v-else-if="user === null" @login="user = $event" />
-  <WorkspaceView v-else :user="user" @logout="logout" />
+  <div v-if="!session.ready" class="app-loading"><span class="brand-mark">S</span><p>正在準備工作空間…</p></div>
+  <RouterView v-else />
 </template>

@@ -1,91 +1,128 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test } from '@playwright/test'
+import { createRequire } from 'node:module'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
-const frameDelay = 1_200
-const demoImage = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII=', 'base64')
+const require = createRequire(import.meta.url)
+const { GIFEncoder, applyPalette, quantize } = require('gifenc')
+const { PNG } = require('pngjs') as typeof import('pngjs')
 
-async function showStep(page: Page, label: string) {
-  await page.evaluate((text) => {
-    let badge = document.querySelector<HTMLDivElement>('#demo-step-badge')
-    if (!badge) {
-      badge = document.createElement('div')
-      badge.id = 'demo-step-badge'
-      Object.assign(badge.style, {
-        position: 'fixed', left: '24px', bottom: '24px', zIndex: '9999',
-        padding: '10px 16px', borderRadius: '999px', color: '#fff',
-        background: 'rgba(16,24,32,.92)', font: '600 14px system-ui',
-        boxShadow: '0 8px 30px rgba(0,0,0,.24)', pointerEvents: 'none',
-      })
-      document.body.appendChild(badge)
+test.use({ viewport: { width: 1024, height: 640 }, deviceScaleFactor: 1 })
+
+function createDemoImage() {
+  const image = new PNG({ width: 800, height: 800 })
+  for (let y = 0; y < image.height; y += 1) {
+    for (let x = 0; x < image.width; x += 1) {
+      const offset = (y * image.width + x) * 4
+      const glow = Math.max(0, 1 - Math.hypot(x - 520, y - 260) / 520)
+      image.data[offset] = 232 + Math.round(glow * 23)
+      image.data[offset + 1] = 104 + Math.round(glow * 78)
+      image.data[offset + 2] = 74 + Math.round(glow * 84)
+      image.data[offset + 3] = 255
     }
-    badge.textContent = text
-  }, label)
-  await page.waitForTimeout(frameDelay)
+  }
+  return PNG.sync.write(image)
 }
 
-test('錄製 Social Studio 完整使用者流程', async ({ page }) => {
+test('錄製 Social Studio V2 完整使用者流程 GIF', async ({ page }) => {
   test.setTimeout(120_000)
-  const title = '夏日新品社群企劃'
+  const gif = GIFEncoder({ initialCapacity: 8 * 1024 * 1024 })
+  let frameCount = 0
 
-  await page.goto('/')
-  await showStep(page, '01｜登入 Social Studio')
+  async function capture(delay = 1400) {
+    const screenshot = await page.screenshot({ type: 'png' })
+    const image = PNG.sync.read(screenshot)
+    const palette = quantize(image.data, 128, { format: 'rgb444' })
+    const indexed = applyPalette(image.data, palette, 'rgb444')
+    gif.writeFrame(indexed, image.width, image.height, {
+      palette,
+      delay,
+      repeat: frameCount === 0 ? 0 : undefined,
+    })
+    frameCount += 1
+  }
+
+  await page.goto('/login')
+  await expect(page.getByTestId('demo-login')).toBeVisible()
+  await capture(1800)
+
   await page.getByTestId('demo-login').click()
   await expect(page.getByRole('heading', { name: '早安，Demo 體驗帳戶' })).toBeVisible()
-  await showStep(page, '02｜查看工作空間總覽')
+  await capture(1800)
 
-  await page.getByRole('button', { name: '內容企劃 0' }).click()
-  await showStep(page, '03｜進入內容企劃')
+  await page.getByRole('link', { name: '內容企劃' }).click()
+  await expect(page.getByRole('heading', { name: '內容企劃', level: 2 })).toBeVisible()
+  await capture(1200)
+
   await page.getByTestId('create-campaign').click()
-  await showStep(page, '04｜建立新的內容企劃')
-  await page.getByLabel('企劃名稱').fill(title)
-  await page.getByLabel('內容簡介').fill('以清爽、自然的語氣介紹夏季新品，面向重視生活質感的年輕族群。')
-  await showStep(page, '05｜填寫企劃目標與受眾')
-  const createResponsePromise = page.waitForResponse((response) => response.url().endsWith('/api/campaigns') && response.request().method() === 'POST')
-  await page.getByTestId('campaign-submit').click()
-  const createResponse = await createResponsePromise
-  expect(createResponse.ok()).toBeTruthy()
-  await expect(page.getByTestId('campaign-drawer')).toBeVisible({ timeout: 15_000 })
+  await page.getByLabel('企劃名稱').fill('夏日品牌內容計畫')
+  await page.getByLabel('企劃目標').fill('提升品牌收藏與互動')
+  await page.getByLabel('內容簡介').fill('面向重視生活質感的年輕族群，規劃跨平台新品內容。')
+  await capture(1800)
+  await page.locator('form.modal').getByRole('button', { name: '建立企劃' }).click()
+  await expect(page.getByRole('heading', { name: '夏日品牌內容計畫' })).toBeVisible()
+  await capture(1600)
 
-  await page.getByTestId('asset-input').setInputFiles({ name: 'summer-product.png', mimeType: 'image/png', buffer: demoImage })
-  await expect(page.getByRole('img', { name: 'summer-product.png' })).toBeVisible()
-  await showStep(page, '06｜上傳企劃圖片素材')
-  await page.getByTestId('generate-button').click()
-  await expect(page.getByText('Demo 文案已產生，請編輯並核准')).toBeVisible({ timeout: 20_000 })
-  await showStep(page, '07｜生成六平台文案')
+  await page.getByRole('button', { name: '新增貼文' }).click()
+  await page.getByLabel('貼文主題').fill('夏日新品正式登場')
+  await page.getByLabel('內容簡介').fill('以清爽設計陪伴每一個陽光時刻。')
+  await capture(1600)
+  await page.locator('form.modal').getByRole('button', { name: '建立貼文' }).click()
+  await expect(page.getByRole('heading', { name: '夏日新品正式登場' })).toBeVisible()
+  await capture(1400)
 
-  const editors = page.locator('.platform-editor')
-  await expect(editors).toHaveCount(6)
-  const firstEditor = editors.nth(0)
-  await firstEditor.getByLabel('文案').fill('夏日新品正式登場！以清爽設計與自然質感，陪你迎接每一個陽光時刻。')
-  await firstEditor.getByLabel('Hashtags').fill('夏日新品 生活風格 SocialStudio')
-  await showStep(page, '08｜人工編輯平台文案')
-  await firstEditor.getByRole('button', { name: '儲存此平台' }).click()
-  await expect(page.getByText('平台文案已儲存')).toBeVisible()
+  await page.getByTestId('asset-input').setInputFiles({
+    name: 'summer-campaign.png',
+    mimeType: 'image/png',
+    buffer: createDemoImage(),
+  })
+  await expect(page.getByRole('img', { name: 'summer-campaign.png' })).toBeVisible()
+  await capture(1600)
 
-  await page.getByRole('button', { name: '核准文案' }).click()
-  await expect(page.getByText('六平台文案已核准')).toBeVisible()
-  await showStep(page, '09｜核准六平台內容')
+  await page.getByRole('button', { name: 'AI 生成文案' }).click()
+  await expect(page.getByText('平台文案已產生')).toBeVisible({ timeout: 20_000 })
+  await capture(2000)
 
-  const scheduleDate = new Date(Date.now() + 2 * 60 * 60 * 1000)
-  const scheduleValue = new Date(scheduleDate.getTime() - scheduleDate.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
-  await page.getByLabel('發布日期與時間').fill(scheduleValue)
-  await page.getByRole('button', { name: '加入日曆' }).click()
-  await expect(page.getByText('已加入內容日曆')).toBeVisible()
-  await showStep(page, '10｜設定發布時間')
+  await page.getByRole('button', { name: '送出審核' }).click()
+  await expect(page.getByText('已送出團隊審核')).toBeVisible()
+  await capture(1600)
 
-  await page.getByRole('button', { name: '關閉' }).click()
-  await page.getByRole('button', { name: '內容日曆' }).click()
-  await expect(page.getByText(title).first()).toBeVisible()
-  await showStep(page, '11｜在內容日曆查看排程')
-  await page.getByText(title).first().click()
-  await page.getByRole('button', { name: '標記發布' }).click()
-  await expect(page.getByText('企劃已標記為發布完成')).toBeVisible()
-  await showStep(page, '12｜完成發布工作流')
+  const editorUrl = page.url()
+  await page.getByRole('link', { name: '審核中心' }).click()
+  const reviewItems = page.getByText('夏日新品正式登場')
+  await expect(reviewItems).toHaveCount(3)
+  await expect(reviewItems.first()).toBeVisible()
+  await capture(1800)
+  await page.goto(editorUrl)
 
-  await page.getByRole('button', { name: '關閉' }).click()
-  await page.getByRole('button', { name: '設定' }).click()
-  await expect(page.getByRole('heading', { name: '設定' })).toBeVisible()
-  await showStep(page, '13｜確認帳戶與 AI Provider')
-  await page.locator('.profile').click()
-  await expect(page.getByRole('heading', { name: '登入工作空間' })).toBeVisible()
-  await showStep(page, '14｜安全登出')
+  const approveButtons = page.getByRole('button', { name: '核准', exact: true })
+  await expect(approveButtons).toHaveCount(3)
+  for (const remaining of [2, 1, 0]) {
+    await approveButtons.first().click()
+    await expect(approveButtons).toHaveCount(remaining)
+  }
+  await capture(1600)
+
+  const schedule = new Date(Date.now() + 60_000)
+  const value = new Date(schedule.getTime() - schedule.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+  await page.getByLabel('發布時間').first().fill(value)
+  await capture(1400)
+  await page.getByRole('button', { name: '加入排程' }).first().click()
+  await expect(page.getByText('平台版本已排程')).toBeVisible()
+
+  await page.getByRole('link', { name: '內容日曆' }).click()
+  await expect(page.getByText('夏日新品正式登場').first()).toBeVisible()
+  await expect(page.getByText('三種質感收納方式')).toHaveCount(3)
+  await capture(2000)
+
+  await page.getByRole('link', { name: '成效分析' }).click()
+  await expect(page.getByRole('heading', { name: '成效分析', level: 2 })).toBeVisible()
+  await expect(page.locator('.analytics-table > div')).toHaveCount(22)
+  await capture(2200)
+
+  gif.finish()
+  const outputDirectory = resolve(process.cwd(), 'docs', 'assets')
+  mkdirSync(outputDirectory, { recursive: true })
+  writeFileSync(resolve(outputDirectory, 'social-studio-v2-demo.gif'), gif.bytes())
+  expect(frameCount).toBe(15)
 })
