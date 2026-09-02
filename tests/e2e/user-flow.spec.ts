@@ -42,9 +42,12 @@ test('使用者可完成 V2 內容營運主流程', async ({ page }, testInfo) =
     await expect(approveButtons).toHaveCount(remaining)
   }
 
-  // datetime-local drops seconds; keep enough distance for slower CI runners.
-  const schedule = new Date(Date.now() + 5 * 60_000)
-  const value = new Date(schedule.getTime() - schedule.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+  // Generate the wall-clock value inside the browser's configured timezone.
+  const value = await page.evaluate(() => {
+    const schedule = new Date(Date.now() + 5 * 60_000)
+    const pad = (part: number) => String(part).padStart(2, '0')
+    return `${schedule.getFullYear()}-${pad(schedule.getMonth() + 1)}-${pad(schedule.getDate())}T${pad(schedule.getHours())}:${pad(schedule.getMinutes())}`
+  })
   await page.getByLabel('發布時間').first().fill(value)
   await page.getByRole('button', { name: '加入排程' }).first().click()
   await expect(page.getByText('平台版本已排程')).toBeVisible()
