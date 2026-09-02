@@ -47,7 +47,7 @@ test('錄製 Social Studio V2 完整使用者流程 GIF', async ({ page }) => {
   await capture(1800)
 
   await page.getByTestId('demo-login').click()
-  await expect(page.getByRole('heading', { name: '早安，Demo 體驗帳戶' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /讓好內容不只被看見/ })).toBeVisible()
   await capture(1800)
 
   await page.getByRole('link', { name: '內容企劃' }).click()
