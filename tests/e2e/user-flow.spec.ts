@@ -42,7 +42,8 @@ test('使用者可完成 V2 內容營運主流程', async ({ page }, testInfo) =
     await expect(approveButtons).toHaveCount(remaining)
   }
 
-  const schedule = new Date(Date.now() + 60_000)
+  // datetime-local drops seconds; keep enough distance for slower CI runners.
+  const schedule = new Date(Date.now() + 5 * 60_000)
   const value = new Date(schedule.getTime() - schedule.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
   await page.getByLabel('發布時間').first().fill(value)
   await page.getByRole('button', { name: '加入排程' }).first().click()
