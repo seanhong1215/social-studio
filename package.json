@@ -18,8 +18,8 @@
     "e2e:serve": "npm run build && npm run e2e:prepare && node scripts/serve-e2e.mjs",
     "deploy": "npm run build && wrangler deploy",
     "cf:typegen": "wrangler types",
-    "db:migrate:local": "wrangler d1 migrations apply social-studio-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply social-studio-db --remote"
+    "db:migrate:local": "wrangler d1 migrations apply social-studio-demo-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply social-studio-demo-db --remote"
   },
   "dependencies": {
     "@lucide/vue": "^1.37.0",
