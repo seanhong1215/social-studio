@@ -51,15 +51,20 @@ auth.post('/register', async (c) => {
 auth.post('/demo', async (c) => {
   if (c.env.AI_PROVIDER !== 'demo') return c.json({ error: { code: 'DEMO_DISABLED', message: 'Demo 帳戶未啟用' } }, 404)
   const email = 'demo@social-studio.local'
+  const displayName = 'Social Studio 團隊'
   let user = await findUser(c.env.DB, email)
   if (!user) {
     const userId = crypto.randomUUID()
     const password = await hashPassword(randomToken(32))
-    await c.env.DB.prepare(`INSERT OR IGNORE INTO users (id, email, display_name, password_hash, password_salt, role, created_at) VALUES (?, ?, 'Demo 體驗帳戶', ?, ?, 'admin', ?)`)
-      .bind(userId, email, password.hash, password.salt, Date.now()).run()
+    await c.env.DB.prepare(`INSERT OR IGNORE INTO users (id, email, display_name, password_hash, password_salt, role, created_at) VALUES (?, ?, ?, ?, ?, 'admin', ?)`)
+      .bind(userId, email, displayName, password.hash, password.salt, Date.now()).run()
     user = await findUser(c.env.DB, email)
   }
   if (!user) return c.json({ error: { code: 'DEMO_UNAVAILABLE', message: '無法建立 Demo 帳戶' } }, 500)
+  if (user.displayName !== displayName) {
+    await c.env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?').bind(displayName, user.id).run()
+    user.displayName = displayName
+  }
   const workspaceId = await ensureDemoWorkspace(c.env.DB, user.id)
   await ensureDemoData(c.env, workspaceId, user.id)
   await createSession(c, user.id, 1)

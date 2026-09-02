@@ -2,11 +2,14 @@ import { expect, test } from '@playwright/test'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nWQAAAAASUVORK5CYII=', 'base64')
 
-test('使用者可完成 V2 內容營運主流程', async ({ page }) => {
+test('使用者可完成 V2 內容營運主流程', async ({ page }, testInfo) => {
   test.setTimeout(120_000)
   await page.goto('/login')
   await page.getByTestId('demo-login').click()
-  await expect(page.getByRole('heading', { name: '早安，Demo 體驗帳戶' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /讓好內容不只被看見/ })).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('Demo 體驗帳戶')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  await page.screenshot({ path: testInfo.outputPath('overview-cover-desktop.png'), fullPage: true })
 
   await page.getByRole('link', { name: '內容企劃' }).click()
   await page.getByTestId('create-campaign').click()
