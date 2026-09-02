@@ -1,4 +1,5 @@
 const encoder = new TextEncoder()
+const PBKDF2_ITERATIONS = 100_000
 
 function bytesToBase64(bytes: Uint8Array): string {
   let value = ''
@@ -25,7 +26,7 @@ export async function sha256(value: string): Promise<string> {
 export async function hashPassword(password: string, salt = randomToken(16)): Promise<{ hash: string; salt: string }> {
   const key = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', hash: 'SHA-256', salt: base64ToBytes(salt).buffer as ArrayBuffer, iterations: 210_000 },
+    { name: 'PBKDF2', hash: 'SHA-256', salt: base64ToBytes(salt).buffer as ArrayBuffer, iterations: PBKDF2_ITERATIONS },
     key,
     256,
   )
