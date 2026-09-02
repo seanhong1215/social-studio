@@ -3,6 +3,7 @@ import { deleteCookie, setCookie } from 'hono/cookie'
 import { z } from 'zod'
 import { hashPassword, randomToken, sha256, verifyPassword } from '../lib/crypto'
 import { requireAuth, requireCsrf } from '../middleware/auth'
+import { ensureDemoData } from '../services/demo-data'
 import type { Bindings, Variables } from '../types'
 
 type AppEnv = { Bindings: Bindings; Variables: Variables }
@@ -59,7 +60,8 @@ auth.post('/demo', async (c) => {
     user = await findUser(c.env.DB, email)
   }
   if (!user) return c.json({ error: { code: 'DEMO_UNAVAILABLE', message: '無法建立 Demo 帳戶' } }, 500)
-  await ensureDemoWorkspace(c.env.DB, user.id)
+  const workspaceId = await ensureDemoWorkspace(c.env.DB, user.id)
+  await ensureDemoData(c.env, workspaceId, user.id)
   await createSession(c, user.id, 1)
   return c.json({ data: user })
 })
@@ -113,7 +115,9 @@ async function findUser(db: D1Database, email: string) {
 }
 
 async function ensureDemoWorkspace(db: D1Database, userId: string) {
-  if (await db.prepare('SELECT workspace_id FROM workspace_members WHERE user_id = ? LIMIT 1').bind(userId).first()) return
+  const existing = await db.prepare('SELECT workspace_id AS workspaceId FROM workspace_members WHERE user_id = ? LIMIT 1')
+    .bind(userId).first<{ workspaceId: string }>()
+  if (existing) return existing.workspaceId
   const now = Date.now()
   await db.batch([
     db.prepare(`INSERT INTO workspaces (id, name, slug, timezone, created_by, created_at, updated_at) VALUES ('demo-workspace', '橙光內容工作室', 'demo-studio', 'Asia/Taipei', ?, ?, ?)`)
@@ -121,6 +125,7 @@ async function ensureDemoWorkspace(db: D1Database, userId: string) {
     db.prepare(`INSERT INTO workspace_members (workspace_id, user_id, role, created_at) VALUES ('demo-workspace', ?, 'owner', ?)`).bind(userId, now),
     db.prepare(`INSERT INTO brands (id, workspace_id, name, industry, audience, tone, keywords, default_cta, created_at, updated_at) VALUES ('demo-brand', 'demo-workspace', '日日選物', '生活選品', '重視質感與永續生活的 25–40 歲消費者', '溫暖、真誠、具生活感', '["質感生活","永續選物"]', '探索更多生活靈感', ?, ?)`).bind(now, now),
   ])
+  return 'demo-workspace'
 }
 
 function invalidCredentials(c: AppContext) { return c.json({ error: { code: 'INVALID_CREDENTIALS', message: '帳號或密碼錯誤' } }, 401) }

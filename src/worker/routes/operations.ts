@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { requireWorkspace, requireWorkspaceRoles } from '../middleware/auth'
+import { resetDemoData } from '../services/demo-data'
 import { enqueueDuePublications } from '../services/publisher'
 import type { Bindings, Variables } from '../types'
 
@@ -72,35 +73,8 @@ operations.post('/demo/reset', requireWorkspaceRoles('owner', 'admin'), async (c
   if (c.env.AI_PROVIDER !== 'demo') return c.json({ error: { code: 'DEMO_ONLY', message: '只有 Demo 環境可以重置情境資料' } }, 403)
   const parsed = z.object({ confirm: z.literal('RESET') }).safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: { code: 'CONFIRM_REQUIRED', message: '請確認重置操作' } }, 400)
-  await resetDemo(c.env, c.get('workspaceId'), c.get('user').id)
+  await resetDemoData(c.env, c.get('workspaceId'), c.get('user').id)
   return c.json({ data: { reset: true }, message: 'Demo 情境資料已重置' })
 })
-
-async function resetDemo(env: Bindings, workspaceId: string, userId: string) {
-  const keys = await env.DB.prepare('SELECT r2_key AS r2Key FROM media_assets WHERE workspace_id = ?').bind(workspaceId).all<{ r2Key: string }>()
-  if (keys.results.length) await env.MEDIA.delete(keys.results.map(({ r2Key }) => r2Key))
-  await env.DB.prepare('DELETE FROM content_campaigns WHERE workspace_id = ?').bind(workspaceId).run()
-  await env.DB.prepare('DELETE FROM media_assets WHERE workspace_id = ?').bind(workspaceId).run()
-  const brand = await env.DB.prepare('SELECT id FROM brands WHERE workspace_id = ? ORDER BY created_at LIMIT 1').bind(workspaceId).first<{ id: string }>()
-  if (!brand) return
-  const now = Date.now(); const campaignId = crypto.randomUUID()
-  await env.DB.prepare(`INSERT INTO content_campaigns (id, workspace_id, brand_id, name, objective, brief, start_at, end_at, status, created_by, created_at, updated_at) VALUES (?, ?, ?, '秋季生活提案', '提升品牌互動與收藏', '以溫暖日常情境介紹秋季選物與使用方式。', ?, ?, 'active', ?, ?, ?)`)
-    .bind(campaignId, workspaceId, brand.id, now - 7 * 86400000, now + 21 * 86400000, userId, now, now).run()
-  const states: Array<{ title: string; status: string; offset: number }> = [
-    { title: '秋日居家儀式感', status: 'in_review', offset: 1 }, { title: '三種質感收納方式', status: 'scheduled', offset: 2 }, { title: '選物店的一天', status: 'published', offset: -1 },
-  ]
-  for (const state of states) {
-    const postId = crypto.randomUUID(); const variantIds = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()]
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO content_posts (id, workspace_id, campaign_id, title, brief, format, assignee_id, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'Demo 情境貼文', 'image', ?, ?, ?, ?)`).bind(postId, workspaceId, campaignId, state.title, userId, userId, now, now),
-      ...(['facebook', 'instagram', 'threads'] as const).map((platform, index) => env.DB.prepare(`INSERT INTO content_variants (id, workspace_id, post_id, platform, copywriting, hashtags, status, scheduled_at, published_at, updated_at) VALUES (?, ?, ?, ?, ?, '["日日選物","秋日生活"]', ?, ?, ?, ?)`)
-        .bind(variantIds[index], workspaceId, postId, platform, `${state.title}｜用一點簡單改變，讓每天更接近喜歡的樣子。`, state.status, state.status === 'scheduled' ? now + state.offset * 86400000 : state.status === 'published' ? now - 86400000 : null, state.status === 'published' ? now - 86400000 : null, now)),
-    ])
-    if (state.status === 'published') {
-      for (const [index, variantId] of variantIds.entries()) await env.DB.prepare(`INSERT INTO analytics_daily (id, workspace_id, variant_id, metric_date, reach, impressions, engagements, clicks, video_views) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`)
-        .bind(crypto.randomUUID(), workspaceId, variantId, new Date(now).toISOString().slice(0, 10), 1200 + index * 230, 1580 + index * 310, 96 + index * 12, 28 + index * 5).run()
-    }
-  }
-}
 
 export default operations

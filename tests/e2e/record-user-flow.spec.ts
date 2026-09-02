@@ -112,10 +112,12 @@ test('錄製 Social Studio V2 完整使用者流程 GIF', async ({ page }) => {
 
   await page.getByRole('link', { name: '內容日曆' }).click()
   await expect(page.getByText('夏日新品正式登場').first()).toBeVisible()
+  await expect(page.getByText('三種質感收納方式')).toHaveCount(3)
   await capture(2000)
 
   await page.getByRole('link', { name: '成效分析' }).click()
   await expect(page.getByRole('heading', { name: '成效分析', level: 2 })).toBeVisible()
+  await expect(page.locator('.analytics-table > div')).toHaveCount(22)
   await capture(2200)
 
   gif.finish()
