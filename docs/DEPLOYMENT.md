@@ -59,16 +59,13 @@ npm run db:migrate:remote
 
 ## GitHub Actions
 
-在 GitHub repository 的 `Settings > Secrets and variables > Actions` 設定：
+GitHub Actions 僅負責執行單元測試、建置及端對端測試，不持有 Cloudflare 部署權限。
 
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
-
-`master` branch 通過 test 與 build 後會執行 `wrangler deploy`。首次正式部署前，仍需手動建立 D1、R2、Queues 及套用 migration。
+Cloudflare 部署維持本機操作：先以 `npx wrangler login` 登入，再執行 `npm run deploy`。資料庫 schema 有異動時，部署前另執行 `npm run db:migrate:remote`。
 
 ## 維護節奏
 
-- 每次 push：CI 執行 test/build。
+- 每次 push：CI 執行 test/build/E2E；需要更新正式網站時再從已登入 Cloudflare 的本機部署。
 - 每月：檢查 Cloudflare usage、Queue DLQ 與 Worker errors。
 - 每季：更新 npm dependencies、演練 D1 export/import。
 - 每半年：確認 Cloudflare 免費額度與模型 availability。
